@@ -13,21 +13,13 @@ scalacOptions ++= Seq("-deprecation", "-feature")
 resolvers += Resolver.sonatypeRepo("snapshots")
 
 libraryDependencies ++= Seq(
-  "com.typesafe.akka" %% "akka-actor" % "2.3.2"
+  "com.rometools" % "rome-fetcher" % "1.5.0"
 )
 
 publishMavenStyle := false
 
 /** Console */
 initialCommands in console := "import com.typesafe.sbt.rss._"
-
-testOptions := Seq(Tests.Filter(s =>
-  Seq("Spec", "Suite", "Unit", "all").exists(s.endsWith(_)) &&
-    !s.endsWith("FeaturesSpec") ||
-    s.contains("UserGuide") ||
-    s.contains("index") ||
-    s.matches("org.specs2.guide.*")))
-
 
 // use withActorSystem from sbt-web
 
