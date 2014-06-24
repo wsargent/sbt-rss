@@ -1,3 +1,4 @@
+// this bit is important
 sbtPlugin := true
 
 organization := "com.typesafe.sbt"
@@ -13,6 +14,7 @@ scalacOptions ++= Seq("-deprecation", "-feature")
 resolvers += Resolver.sonatypeRepo("snapshots")
 
 libraryDependencies ++= Seq(
+  // RSS fetcher (note: the website is horribly outdated)
   "com.rometools" % "rome-fetcher" % "1.5.0"
 )
 
@@ -20,9 +22,3 @@ publishMavenStyle := false
 
 /** Console */
 initialCommands in console := "import com.typesafe.sbt.rss._"
-
-// use withActorSystem from sbt-web
-
-// use akka-http client from Spray to talk to remote server
-
-// use webdriver.
