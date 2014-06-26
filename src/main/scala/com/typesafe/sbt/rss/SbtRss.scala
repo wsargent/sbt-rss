@@ -19,15 +19,17 @@ object SbtRss extends AutoPlugin {
   /**
    * Sets up the autoimports of setting keys.
    */
-  object autoImport {
-    /**
-     * Defines "rssList" as the setting key that we want the user to fill out.
-     */
-    val rssList = settingKey[Seq[String]]("The list of RSS urls to update.")
+  object Import {
+    object RssKeys {
+      /**
+       * Defines "rssList" as the setting key that we want the user to fill out.
+       */
+      val rssList = settingKey[Seq[String]]("The list of RSS urls to update.")
+    }
   }
 
-  // I don't know why we do this.
-  import autoImport._
+  // If you change your auto import then the change is automatically reflected here..
+  import Import.RssKeys._
 
   /**
    * An internal cache to avoid hitting RSS feeds repeatedly.
