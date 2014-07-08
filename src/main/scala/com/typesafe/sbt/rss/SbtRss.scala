@@ -19,20 +19,20 @@ object SbtRss extends AutoPlugin {
   /**
    * Sets up the autoimports of setting keys.
    */
-  object Import {
-    object RssKeys {
-      /**
-       * Defines "rssList" as the setting key that we want the user to fill out.
-       */
-      val rssList = settingKey[Seq[String]]("The list of RSS urls to update.")
-    }
+  object autoImport {
+    /**
+     * Defines "rssList" as the setting key that we want the user to fill out.
+     */
+    val rssList = settingKey[Seq[String]]("The list of RSS urls to update.")
+    val rss = inputKey[Unit]("Prints RSS")
   }
 
   // If you change your auto import then the change is automatically reflected here..
-  import Import.RssKeys._
+  import autoImport._
 
   /**
    * An internal cache to avoid hitting RSS feeds repeatedly.
+   *
    */
   private val feedInfoCache = HashMapFeedInfoCache.getInstance()
 
@@ -42,16 +42,14 @@ object SbtRss extends AutoPlugin {
   private val fetcher = new HttpURLFeedFetcher(feedInfoCache)
 
   /** Allows the RSS command to take string arguments. */
-  private val args = (Space ~> StringBasic).*
+  private val argsParser = (Space ~> StringBasic).*
 
-  /** The RSS command, mapped into sbt as "rss [args]" */
-  private lazy val rssCommand = Command("rss")(_ => args)(doRssCommand)
-
+  
   /**
-   * Adds the rssCommand to the list of global commands in SBT.
+   * Adds the rss task to the list of tasks for the project.
    */
-  override def globalSettings: Seq[Setting[_]] = super.globalSettings ++ Seq(
-    Keys.commands += rssCommand
+  override def projectSettings: Seq[Setting[_]] = Seq(
+    rssSetting
   )
 
   /**
@@ -61,47 +59,48 @@ object SbtRss extends AutoPlugin {
    * @param args the string arguments provided to "rss"
    * @return the unchanged state.
    */
-  def doRssCommand(state: State, args: Seq[String]): State = {
-    state.log.debug(s"args = $args")
-
-    // Doing Project.extract(state) and then importing it gives us currentRef.
-    // Using currentRef allows us to get at the values of SettingKey.
-    // http://www.scala-sbt.org/release/docs/Build-State.html#Project-related+data
-    val extracted = Project.extract(state)
-    import extracted._
+  def rssSetting: Setting[_] = rss := {
+    // Parse the input string into space-delimited strings.
+    val args = argsParser.parsed
+    // Sbt provided logger.
+    val log = streams.value.log
+    log.debug(s"args = $args")
 
     // Create a new fetcher event listener attached to the state -- this gives
     // us a way to log the fetcher events.
-    val listener = new FetcherEventListenerImpl(state)
+    val listener = new FetcherEventListenerImpl(log)
     fetcher.addFetcherEventListener(listener)
 
     try {
       if (args.isEmpty) {
         // This is the way we get the setting from rssList := Seq("http://foo.com/rss")
-        // http://www.scala-sbt.org/release/docs/Build-State.html#Project+data
-        val currentList = (rssList in currentRef get structure.data).get
+        // The .? means that the setting may or may not exist.  If it doesn't,
+        //   for now we return an empty sequence.
+        // The .value means the dependency is computed *asynchronously* before this function 
+        //   is run, and we get the resulting value
+        val currentList = rssList.?.value.getOrElse(Nil)
         for (currentUrl <- currentList) {
           val feedUrl = new URL(currentUrl)
-          printFeed(feedUrl, state)
+          printFeed(feedUrl, log)
         }
       } else {
         for (currentUrl <- args) {
           val feedUrl = new URL(currentUrl)
-          printFeed(feedUrl, state)
+          printFeed(feedUrl, log)
         }
       }
     } catch {
       case NonFatal(e) =>
-        state.log.error(s"Error ${e.getMessage}")
+        log.error(s"Error ${e.getMessage}")
     } finally {
       // Remove the listener so we don't have a memory leak.
       fetcher.removeFetcherEventListener(listener)
     }
-
-    state
+    // We return nothing, or unit.
+    ()
   }
 
-  def printFeed(feedUrl:URL, state:State) = {
+  def printFeed(feedUrl:URL, log: Logger) = {
     // Allows us to do "asScala" conversion from java.util collections.
     import scala.collection.JavaConverters._
 
@@ -115,11 +114,11 @@ object SbtRss extends AutoPlugin {
     // The only way to provide the RSS feeds as a resource seems to be to
     // have another plugin extend this one.  The code's small enough that it
     // doesn't seem worth it.
-    state.log.info(s"Showing $feedUrl")
-    state.log.info(s"\t\tTitle = $title")
-    state.log.info(s"\t\tPublished = $publishDate")
-    state.log.info(s"\t\tMost recent entry = ${firstEntry.getTitle.trim()}")
-    state.log.info(s"\t\tEntry updated = " + firstEntry.getUpdatedDate)
+    log.info(s"Showing $feedUrl")
+    log.info(s"\t\tTitle = $title")
+    log.info(s"\t\tPublished = $publishDate")
+    log.info(s"\t\tMost recent entry = ${firstEntry.getTitle.trim()}")
+    log.info(s"\t\tEntry updated = " + firstEntry.getUpdatedDate)
   }
 
   /**
@@ -127,16 +126,16 @@ object SbtRss extends AutoPlugin {
    *
    * @param state
    */
-  class FetcherEventListenerImpl(state:State) extends FetcherListener {
+  class FetcherEventListenerImpl(log: Logger) extends FetcherListener {
     def fetcherEvent(event:FetcherEvent) = {
       import FetcherEvent._
       event.getEventType match {
         case EVENT_TYPE_FEED_POLLED =>
-          state.log.debug("\tEVENT: Feed Polled. URL = " + event.getUrlString)
+          log.debug("\tEVENT: Feed Polled. URL = " + event.getUrlString)
         case EVENT_TYPE_FEED_RETRIEVED =>
-          state.log.debug("\tEVENT: Feed Retrieved. URL = " + event.getUrlString)
+          log.debug("\tEVENT: Feed Retrieved. URL = " + event.getUrlString)
         case EVENT_TYPE_FEED_UNCHANGED =>
-          state.log.debug("\tEVENT: Feed Unchanged. URL = " + event.getUrlString)
+          log.debug("\tEVENT: Feed Unchanged. URL = " + event.getUrlString)
       }
     }
   }
